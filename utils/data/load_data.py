@@ -60,8 +60,17 @@ class SliceData(Dataset):
             with h5py.File(image_fname, "r") as hf:
                 target = hf[self.target_key][dataslice]
                 attrs = dict(hf.attrs)
-            
-        return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
+        
+        # Add anatomy info
+        if "brain" in kspace_fname.name:
+            anatomy = "brain"
+        elif "knee" in kspace_fname.name:
+            anatomy = "knee"
+        else:
+            anatomy = "unknown"
+
+        # Add return anatomy
+        return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice, anatomy)
 
 
 def create_data_loaders(data_path, args, shuffle=False, isforward=False):

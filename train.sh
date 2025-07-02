@@ -5,4 +5,5 @@ python train.py \
   -r 10 \
   -n 'test_Varnet' \
   -t '/root/Data/train/' \
-  -v '/root/Data/val/'
+  -v '/root/Data/val/' \
+  --cascade 6

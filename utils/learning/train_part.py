@@ -21,11 +21,12 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
     total_loss = 0.
 
     for iter, data in enumerate(data_loader):
-        mask, kspace, target, maximum, _, _ = data
+        mask, kspace, target, maximum, _, _, anatomy = data    # Add anatomy
         mask = mask.cuda(non_blocking=True)
         kspace = kspace.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
         maximum = maximum.cuda(non_blocking=True)
+        anatomy = anatomy.cuda(non_blocking=True)    # Add anatomy
 
         output = model(kspace, mask)
         loss = loss_type(output, target, maximum)
