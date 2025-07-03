@@ -1,0 +1,76 @@
+import numpy as np
+import torch
+
+def to_tensor(data):
+    """
+    Convert numpy array to PyTorch tensor. For complex arrays, the real and imaginary parts
+    are stacked along the last dimension.
+    Args:
+        data (np.array): Input numpy array
+    Returns:
+        torch.Tensor: PyTorch version of data
+    """
+    return torch.from_numpy(data)
+
+class DataTransform:
+    def __init__(self, isforward, max_key):
+        self.isforward = isforward
+        self.max_key = max_key
+    def __call__(self, mask, input, target, attrs, fname, slice, anatomy):
+        if not self.isforward:
+            target = to_tensor(target)
+            maximum = attrs[self.max_key]
+        else:
+            target = -1
+            maximum = -1
+
+        # Add anatomy index
+        if anatomy == "brain":
+            anatomy_idx = 0
+        elif anatomy == "knee":
+            anatomy_idx = 1
+        else:
+            anatomy_idx = -1
+        
+        kspace = to_tensor(input * mask)
+        kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
+        mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
+        return mask, kspace, target, maximum, fname, slice, anatomy_idx    # Add anatomy index
+
+# New class for augmentation
+
+class AugDataTransform:
+    def __init__(self, isforward, max_key, augmentor=None):
+        self.isforward = isforward
+        self.max_key = max_key
+        self.augmentor = augmentor
+
+    def __call__(self, mask, input, target, attrs, fname, slice, anatomy):
+        if not self.isforward:
+            target = to_tensor(target)
+            maximum = attrs[self.max_key]
+        else:
+            target = -1
+            maximum = -1
+
+        # Add anatomy index
+        if anatomy == "brain":
+            anatomy_idx = 0
+        elif anatomy == "knee":
+            anatomy_idx = 1
+        else:
+            anatomy_idx = -1
+        
+        kspace = to_tensor(input * mask)
+        kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
+        mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
+
+        # Add augmentation
+        if self.augmentor is not None:
+            target_size = [kspace.shape[-3], kspace.shape[-2]] if kspace.dim() == 4 else [kspace.shape[-2], kspace.shape[-3]]
+        kspace, aug_target = self.augmentor(kspace, target_size)
+        if aug_target is not None:
+            target = aug_target
+
+        return mask, kspace, target, maximum, fname, slice, anatomy_idx
+
