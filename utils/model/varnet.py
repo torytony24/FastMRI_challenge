@@ -17,6 +17,10 @@ from fastmri.data import transforms
 from unet import Unet
 from utils.common.utils import center_crop
 
+# Add checkpoint
+import torch.utils.checkpoint
+
+
 
 class NormUnet(nn.Module):
     """

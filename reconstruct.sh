@@ -1,4 +1,5 @@
 python reconstruct.py \
   -b 1 \
-  -n 'test_Varnet' \
-  -p '/root/Data/leaderboard'
+  -n 'cascade8' \
+  -p '/root/Data/leaderboard' \
+  --cascade 8
