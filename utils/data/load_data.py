@@ -1,9 +1,12 @@
 import h5py
 import random
-from utils.data.transforms import DataTransform
+from utils.data.transforms import *
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import numpy as np
+
+# for augment
+from mraugment.data_augment import DataAugmentor
 
 class SliceData(Dataset):
     def __init__(self, root, transform, input_key, target_key, forward=False):
@@ -73,16 +76,28 @@ class SliceData(Dataset):
         return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice, anatomy)
 
 
-def create_data_loaders(data_path, args, shuffle=False, isforward=False):
+def create_data_loaders(data_path, args, shuffle=False, isforward=False, is_train = False):
     if isforward == False:
         max_key_ = args.max_key
         target_key_ = args.target_key
     else:
         max_key_ = -1
         target_key_ = -1
+    
+    # Add transform
+    augmentor = None
+    if is_train:
+        def current_epoch_fn():
+            return getattr(args, "current_epoch", 0)
+        augmentor = DataAugmentor(args, current_epoch_fn)
+
+    transform = AugDataTransform(
+        isforward, max_key_, augmentor=augmentor
+    )
+    
     data_storage = SliceData(
         root=data_path,
-        transform=DataTransform(isforward, max_key_),
+        transform=transform,
         input_key=args.input_key,
         target_key=target_key_,
         forward = isforward

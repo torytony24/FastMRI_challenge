@@ -6,4 +6,8 @@ python train.py \
   -n 'cascade8' \
   -t '/root/Data/train/' \
   -v '/root/Data/val/' \
-  --cascade 8 
+  --cascade 8 \
+  --aug_on \
+  --aug_strength 0.5 \
+  --aug_schedule constant \
+  --aug_delay 0

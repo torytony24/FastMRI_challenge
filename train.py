@@ -12,6 +12,8 @@ if os.getcwd() + '/utils/common/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/common/')
 from utils.common.utils import seed_fix
 
+# Add augment
+from mraugment.data_augment import DataAugmentor
 
 def parse():
     parser = argparse.ArgumentParser(description='Train Varnet on FastMRI challenge Images',
@@ -33,7 +35,14 @@ def parse():
     parser.add_argument('--max-key', type=str, default='max', help='Name of max key in attributes')
     parser.add_argument('--seed', type=int, default=430, help='Fix random seed')
 
+    # Add augment parser
+    parser = DataAugmentor.add_augmentation_specific_args(parser)
+    
     args = parser.parse_args()
+
+    # max epochs = num epochs for MRAugment
+    args.max_epochs = args.num_epochs
+
     return args
 
 if __name__ == '__main__':
