@@ -11,6 +11,78 @@ from mraugment.helpers import complex_crop_if_needed, crop_if_needed, complex_ch
 from fastmri.data import transforms as T
 from fastmri import fft2c, ifft2c, rss_complex, complex_abs
 
+# Add crop or pad
+import torch.nn.functional as F
+def crop_or_pad_kspace(kspace, target_size):
+    """
+    Crop or zero-pad kspace tensor to match target_size (H, W).
+    kspace: torch.Tensor with shape [..., H, W, 2]
+    target_size: tuple or list (H, W)
+    Returns: kspace tensor cropped or padded to target_size spatially
+    """
+    *_, h, w, _ = kspace.shape
+    th, tw = target_size
+
+    # Crop if larger
+    if h > th:
+        top = (h - th) // 2
+        kspace = kspace[..., top:top+th, :, :]
+    if w > tw:
+        left = (w - tw) // 2
+        kspace = kspace[..., :, left:left+tw, :]
+
+    # Pad if smaller
+    h, w = kspace.shape[-3], kspace.shape[-2]
+    pad_h = th - h
+    pad_w = tw - w
+
+    # For F.pad: (pad_left, pad_right, pad_top, pad_bottom)
+    # F.pad expects the last two dims to be [H, W], so we need to permute temporarily
+    if len(kspace.shape) == 4:
+        # [C, H, W, 2] -> [C, 2, H, W]
+        kspace_reshaped = kspace.permute(0, 3, 1, 2)
+        pad = (pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2)
+        kspace_padded = F.pad(kspace_reshaped, pad, mode='constant', value=0)
+        # [C, 2, H, W] -> [C, H, W, 2]
+        kspace_padded = kspace_padded.permute(0, 2, 3, 1)
+    elif len(kspace.shape) == 3:
+        # [H, W, 2] -> [2, H, W]
+        kspace_reshaped = kspace.permute(2, 0, 1)
+        pad = (pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2)
+        kspace_padded = F.pad(kspace_reshaped, pad, mode='constant', value=0)
+        # [2, H, W] -> [H, W, 2]
+        kspace_padded = kspace_padded.permute(1, 2, 0)
+    else:
+        raise ValueError(f"Unexpected kspace shape: {kspace.shape}")
+
+    return kspace_padded
+
+
+def crop_or_pad_image(image, target_size):
+    """
+    image: torch.Tensor, shape [..., H, W]
+    target_size: (H, W)
+    """
+    *_, h, w = image.shape
+    th, tw = target_size
+
+    # Crop
+    if h > th:
+        top = (h - th) // 2
+        image = image[..., top:top+th, :]
+    if w > tw:
+        left = (w - tw) // 2
+        image = image[..., :, left:left+tw]
+
+    # Pad
+    h, w = image.shape[-2], image.shape[-1]
+    pad_h = th - h
+    pad_w = tw - w
+    if pad_h > 0 or pad_w > 0:
+        pad = (pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2)
+        image = F.pad(image, pad, mode='constant', value=0)
+    return image
+            
 class AugmentationPipeline:
     """
     Describes the transformations applied to MRI data and handles
@@ -133,12 +205,17 @@ class AugmentationPipeline:
         im = complex_channel_last(im)
         
         return im
+
     
-    def augment_from_kspace(self, kspace, target_size, max_train_size=None):       
+    def augment_from_kspace(self, kspace, target_size, max_train_size=None):    
         im = ifft2c(kspace) 
         im = self.augment_image(im, max_output_size=max_train_size)
         target = self.im_to_target(im, target_size)
         kspace = fft2c(im)
+
+        kspace = crop_or_pad_kspace(kspace, target_size)
+        target = crop_or_pad_image(target, (384,384))
+
         return kspace, target
     
     def im_to_target(self, im, target_size):     
@@ -248,6 +325,7 @@ class DataAugmentor:
                                                                           target_size=target_size,
                                                                           max_train_size=self.max_train_resolution)
         else:
+            target = None # Added for aug
             # Crop in image space if image is too large
             if self.max_train_resolution is not None:
                 if kspace.shape[-3] > self.max_train_resolution[0] or kspace.shape[-2] > self.max_train_resolution[1]:
