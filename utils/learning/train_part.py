@@ -55,7 +55,7 @@ def validate(args, model, data_loader):
 
     with torch.no_grad():
         for iter, data in enumerate(data_loader):
-            mask, kspace, target, _, fnames, slices = data
+            mask, kspace, target, _, fnames, slices, _ = data    # Add anatomy
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
             output = model(kspace, mask)

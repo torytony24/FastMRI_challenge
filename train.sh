@@ -3,7 +3,7 @@ python train.py \
   -e 1 \
   -l 0.001 \
   -r 10 \
-  -n 'test_Varnet' \
+  -n 'cascade8' \
   -t '/root/Data/train/' \
   -v '/root/Data/val/' \
-  --cascade 6
+  --cascade 8 

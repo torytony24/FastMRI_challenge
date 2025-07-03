@@ -240,7 +240,9 @@ class VarNet(nn.Module):
         kspace_pred = masked_kspace.clone()
 
         for cascade in self.cascades:
-            kspace_pred = cascade(kspace_pred, masked_kspace, mask, sens_maps)
+            # Gradient checkpointing
+            # kspace_pred = cascade(kspace_pred, masked_kspace, mask, sens_maps)
+            kspace_pred = torch.utils.checkpoint.checkpoint(cascade, kspace_pred, masked_kspace, mask, sens_maps)
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
         return result
