@@ -1,6 +1,41 @@
 import numpy as np
 import torch
 
+
+#debug
+import os
+import torch
+from utils.model.fastmri.fftc import ifft2c_new as ifft2c
+
+def complex_abs(tensor):
+    return torch.sqrt(tensor[..., 0] ** 2 + tensor[..., 1] ** 2)
+
+def kspace_to_image(kspace):
+    image = ifft2c(kspace)
+    return complex_abs(image)
+
+def visualize_kspace_and_image(kspace, target=None, title="", save_dir="/root/vis_debug", prefix=""):
+    if kspace.dim() == 4:
+        kspace = kspace[0]
+    if target is not None and target.dim() == 3:
+        target = target[0]
+
+    image = kspace_to_image(kspace)
+    kspace_log = torch.log1p(complex_abs(kspace))
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    def save_image(img_tensor, filename):
+        path = os.path.join(save_dir, f"{prefix}_{filename}.png")
+        plt.imsave(path, img_tensor.cpu().numpy(), cmap='gray')
+        print(f"Saved: {path}")
+
+    save_image(kspace_log, f"{title}_kspace")
+    save_image(image, f"{title}_image")
+    if target is not None:
+        save_image(target, f"{title}_target")
+#debug end
+
 def to_tensor(data):
     """
     Convert numpy array to PyTorch tensor. For complex arrays, the real and imaginary parts
@@ -61,16 +96,43 @@ class AugDataTransform:
         else:
             anatomy_idx = -1
         
-        kspace = to_tensor(input * mask)
+        kspace = to_tensor(input)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
-        mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
 
+        """
+        # visualize before aug
+        if self.augmentor is not None and not self.isforward:
+            visualize_kspace_and_image(
+                kspace=kspace,
+                target=target,
+                title="before_aug",
+                prefix=f"{fname}_{slice}"
+            )
+        """
+        
         # Add augmentation
         if self.augmentor is not None:
-            target_size = [kspace.shape[-3], kspace.shape[-2]] if kspace.dim() == 4 else [kspace.shape[-2], kspace.shape[-3]]
-        kspace, aug_target = self.augmentor(kspace, target_size)
-        if aug_target is not None:
-            target = aug_target
+            target_size = [384,384]
+            kspace, aug_target = self.augmentor(kspace, target_size)
+            if aug_target is not None:
+                target = aug_target
 
+        """
+        # visualize after aug
+        if self.augmentor is not None and not self.isforward:
+            visualize_kspace_and_image(
+                kspace=kspace,
+                target=target,
+                title="after_aug",
+                prefix=f"{fname}_{slice}"
+            )
+        """
+
+        mask_tensor = torch.tensor(mask).to(kspace.device).unsqueeze(-1)
+        kspace = kspace * mask_tensor
+        
+        mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
+
+        
         return mask, kspace, target, maximum, fname, slice, anatomy_idx
 

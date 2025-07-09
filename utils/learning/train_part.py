@@ -109,6 +109,19 @@ def train(args):
 
     best_val_loss = 1.
     start_epoch = 0
+
+    
+    # bring checkpoint
+    """
+    checkpoint_path = '/root/result/augoff-epoch20/checkpoints/best_model.pt'  # 예시
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint['model'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    start_epoch = checkpoint['epoch']
+    best_val_loss = checkpoint['best_val_loss']
+    print(f"Checkpoint loaded! Resume from epoch {start_epoch}")
+    """
+
     
     train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle = True, is_train = True)
     val_loader = create_data_loaders(data_path = args.data_path_val, args = args, is_train = False)

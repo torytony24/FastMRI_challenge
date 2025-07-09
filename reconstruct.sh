@@ -1,5 +1,5 @@
 python reconstruct.py \
   -b 1 \
-  -n 'cascade8' \
+  -n 'augon-strength5' \
   -p '/root/Data/leaderboard' \
   --cascade 8
