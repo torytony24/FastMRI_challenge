@@ -64,8 +64,6 @@ class DataTransform:
             anatomy_idx = 0
         elif anatomy == "knee":
             anatomy_idx = 1
-        else:
-            anatomy_idx = -1
         
         kspace = to_tensor(input * mask)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
@@ -93,8 +91,6 @@ class AugDataTransform:
             anatomy_idx = 0
         elif anatomy == "knee":
             anatomy_idx = 1
-        else:
-            anatomy_idx = -1
         
         kspace = to_tensor(input)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)

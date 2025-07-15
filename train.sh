@@ -1,27 +1,9 @@
 python train.py \
   -b 1 \
-  -e 60 \
+  -e 100 \
   -l 0.001 \
   -r 10 \
-  -n 'augon-strength5' \
+  -n 'aspin-varnet-test' \
   -t '/root/Data/train/' \
   -v '/root/Data/val/' \
-  --cascade 8 \
-  --aug_on \
-  --aug_strength 0.5 \
-  --aug_schedule exp \
-  --aug_delay 2 \
-  --aug_upsample \
-  --aug_weight_translation 1.0 \
-  --aug_weight_rotation 0.5 \
-  --aug_weight_shearing 0.5 \
-  --aug_weight_scaling 0.5 \
-  --aug_weight_rot90 0.0 \
-  --aug_weight_fliph 0.5 \
-  --aug_weight_flipv 0.5 \
-  --aug_max_translation_x 0.05 \
-  --aug_max_translation_y 0.05 \
-  --aug_max_rotation 10 \
-  --aug_max_shearing_x 5.0 \
-  --aug_max_shearing_y 5.0 \
-  --aug_max_scaling 0.1
+  --cascade 8 

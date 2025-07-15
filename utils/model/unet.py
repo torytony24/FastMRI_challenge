@@ -24,7 +24,7 @@ class Unet(nn.Module):
         out_chans: int,
         chans: int = 32,
         num_pool_layers: int = 4,
-        drop_prob: float = 0.0,
+        drop_prob: float = 0.0
     ):
         """
         Args:

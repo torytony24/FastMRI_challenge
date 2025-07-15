@@ -4,7 +4,8 @@ import torch
 from collections import defaultdict
 from utils.common.utils import save_reconstructions
 from utils.data.load_data import create_data_loaders
-from utils.model.varnet import VarNet
+#from utils.model.varnet import VarNet
+from utils.model.soft_aspin import SoftASPIN_VarNet
 
 def test(args, model, data_loader):
     model.eval()
@@ -32,7 +33,7 @@ def forward(args):
     torch.cuda.set_device(device)
     print ('Current cuda device ', torch.cuda.current_device())
 
-    model = VarNet(num_cascades=args.cascade, 
+    model = SoftASPIN_VarNet(num_cascades=args.cascade, 
                    chans=args.chans, 
                    sens_chans=args.sens_chans)
     model.to(device=device)

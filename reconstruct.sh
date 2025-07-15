@@ -1,5 +1,5 @@
 python reconstruct.py \
   -b 1 \
-  -n 'augon-strength5' \
+  -n 'aspin-varnet-test' \
   -p '/root/Data/leaderboard' \
   --cascade 8
