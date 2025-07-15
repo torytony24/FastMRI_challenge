@@ -419,16 +419,25 @@ class ASPIN_VarNet(nn.Module):
         sens_maps = self.sens_net(masked_kspace, mask)
         kspace_pred = masked_kspace.clone()
 
+
+        # method of concantating all features of cascades
+        """
         all_features = []
         for cascade in self.cascades:
             kspace_pred, feature = cascade(kspace_pred, masked_kspace, mask, sens_maps, anatomy_idx)
             all_features.append(feature)
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
-
         concat_feature = torch.mean(torch.stack(all_features),dim=0)
         probs = self.anatomy_classifier(concat_feature)
+        """
 
+        # method of only using the last cascade
+        for cascade in self.cascades:
+            kspace_pred, feature = cascade(kspace_pred, masked_kspace, mask, sens_maps, anatomy_idx)
+        result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
+        result = center_crop(result, 384, 384)
+        probs = self.anatomy_classifier(feature)
 
         return result, probs
     
