@@ -24,10 +24,12 @@ class AnatomyClassifier(nn.Module):
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
+            #nn.Dropout(0.5),
             nn.MaxPool2d(2),  # Downsample 1
 
             nn.Conv2d(16, 32, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
+            #nn.Dropout(0.5),
             nn.MaxPool2d(2),  # Downsample 2
         )
 
@@ -398,6 +400,7 @@ class ASPIN_VarNet(nn.Module):
     """
     def __init__(
         self,
+        classifier,
         num_cascades: int = 12,
         sens_chans: int = 8,
         sens_pools: int = 4,
@@ -411,7 +414,7 @@ class ASPIN_VarNet(nn.Module):
         self.cascades = nn.ModuleList(
             [ASPIN_VarNetBlock(ASPIN_Unet(chans, pools,gamma = self.gamma, beta = self.beta)) for _ in range(num_cascades)]
         )
-        self.anatomy_classifier = AnatomyClassifier(2, 2)
+        self.anatomy_classifier = classifier
 
 
 
