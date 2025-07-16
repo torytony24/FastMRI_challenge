@@ -23,21 +23,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
     len_loader = len(data_loader)
     total_loss = 0.
 
-    # exponential lambda scheduling
-    """
-    if epoch < 5:
-        lambda_cls = 0.9 * (0.6 ** epoch)
-        lambda_recon = 1.0 - lambda_cls
-    else:
-        lambda_cls = 0.
-        lambda_recon = 1.0
-    """
-
-    cnt = 0
     for iter, data in enumerate(data_loader):
-        if cnt > 5:
-            break
-        cnt += 1
         mask, kspace, target, maximum, _, _, anatomy = data    # Add anatomy
         mask = mask.cuda(non_blocking=True)
         kspace = kspace.cuda(non_blocking=True)
@@ -64,7 +50,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
             start_iter = time.perf_counter()
 
         # classification debugging
-        if iter % 100 == 0:
+        if iter % 1000 == 0:
             _, pred_label = probs.max(dim=1)
             print('True:', anatomy.cpu().numpy())
             print('Pred:', pred_label.cpu().numpy())
@@ -82,11 +68,7 @@ def validate(args, model, data_loader):
     start = time.perf_counter()
 
     with torch.no_grad():
-        cnt = 0
         for iter, data in enumerate(data_loader):
-            if cnt > 5:
-                break
-            cnt += 1
             mask, kspace, target, _, fnames, slices, _ = data    # Add anatomy
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
@@ -133,11 +115,7 @@ def train_epoch_cls(args, epoch, model, data_loader, optimizer, loss_type):
     correct = 0
     total_num = 0
 
-    cnt = 0
     for iter, data in enumerate(data_loader):
-        if cnt > 5:
-            break
-        cnt += 1
         mask, kspace, target, maximum, _, _, anatomy = data    # Add anatomy
         mask = mask.cuda(non_blocking=True)
         kspace = kspace.cuda(non_blocking=True)
@@ -165,7 +143,6 @@ def train_epoch_cls(args, epoch, model, data_loader, optimizer, loss_type):
                 f'Loss = {loss.item():.4g} '
             )
 
-            
             acc = correct / total_num
             print(f'[Train Classifier] {correct:3d} out of {total_num:3d}, Acc: {acc:.4f}')
             
@@ -180,11 +157,7 @@ def validate_cls(args, model, data_loader, loss_type):
     total_num = 0
 
     with torch.no_grad():
-        cnt = 0
         for iter, data in enumerate(data_loader):
-            if cnt > 5:
-                break
-            cnt += 1
             mask, kspace, target, maximum, _, _, anatomy = data    # Add anatomy
             mask = mask.cuda(non_blocking=True)
             kspace = kspace.cuda(non_blocking=True)
@@ -235,11 +208,13 @@ def train(args):
 
     ########################################
     ### Anatomy classifier training part ###
-    
+
+    # Maybe only classifiers???
+    #optimizer_cls = torch.optim.Adam(model.parameters(), lr = args.lr)
     optimizer_cls = torch.optim.Adam(model.parameters(), lr = args.lr)
     loss_type_cls = nn.NLLLoss().to(device=device)
 
-    for epoch in range(1):
+    for epoch in range(10):
         print(f'Classifier Epoch #{epoch:2d} ..............')
         
         train_loss = train_epoch_cls(args, epoch, model, train_loader, optimizer_cls, loss_type_cls)
@@ -285,8 +260,12 @@ def train(args):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         
         train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type)
-        # check neeed !!!
-        model_soft.load_state_dict(model.state_dict())
+        # Transition from ASPIN to Soft-ASPIN
+        classifier_state_dict = model.anatomy_classifier.state_dict()
+        for cascade in model_soft.cascades:
+            cascade_classifier = cascade.model.aspin.classifier
+            cascade_classifier.load_state_dict(classifier_state_dict)
+        # transition end        
         val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model_soft, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
