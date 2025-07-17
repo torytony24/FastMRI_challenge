@@ -1,10 +1,3 @@
-"""
-Copyright (c) Facebook, Inc. and its affiliates.
-
-This source code is licensed under the MIT license found in the
-LICENSE file in the root directory of this source tree.
-"""
-
 import math
 from typing import List, Tuple
 
@@ -16,33 +9,7 @@ from fastmri.data import transforms
 
 from unet import Unet
 from utils.common.utils import center_crop
-
-
-class AnatomyClassifier(nn.Module):
-    def __init__(self, in_channels: int, num_anatomies: int):
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            #nn.Dropout(0.5),
-            nn.MaxPool2d(2),  # Downsample 1
-
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            #nn.Dropout(0.5),
-            nn.MaxPool2d(2),  # Downsample 2
-        )
-
-        self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),   # → (B, 32, 1, 1)
-            nn.Flatten(),              # → (B, 32)
-            nn.Linear(32, num_anatomies)  # → (B, 2)
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        logits = self.classifier(x)
-        return F.softmax(logits, dim=1)
+from utils.model.classifier import AnatomyClassifier
 
 
 class NormUnet(nn.Module):
@@ -233,23 +200,24 @@ class ASPIN(nn.Module):
     """
     Anatomy-SPecific Instance Normalization
     """
-    def __init__(self, num_anatomies: int, num_channels: int, gamma, beta):
+    def __init__(self, num_anatomies: int, num_channels: int):
         super().__init__()
         self.num_anatomies = num_anatomies
         self.num_channels = num_channels
 
-        self.gamma = gamma
-        self.beta = beta
+        self.gamma = nn.Parameter(torch.ones(num_anatomies, num_channels))
+        self.beta  = nn.Parameter(torch.zeros(num_anatomies, num_channels))
 
     # (B, C, H, W)
-    def forward(self, x: torch.Tensor, anatomy_idx) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, anatomy_idx: torch.Tensor) -> torch.Tensor:
         mean = x.mean(dim=[2, 3], keepdim=True)
         std = x.std(dim=[2, 3], keepdim=True)
 
         norm = (x - mean) / (std + 1e-5)
-        
-        gamma = self.gamma[anatomy_idx].view(1, -1, 1, 1)
-        beta = self.beta[anatomy_idx].view(1, -1, 1, 1)
+
+        anatomy = anatomy_idx.squeeze().tolist()
+        gamma = self.gamma[anatomy].view(1, -1, 1, 1)
+        beta = self.beta[anatomy].view(1, -1, 1, 1)
         
         return gamma * norm + beta, mean, std
     
@@ -262,7 +230,6 @@ class ASPIN_Unet(nn.Module):
         self,
         chans: int,
         num_pools: int,
-        gamma, beta,
         in_chans: int = 2,
         out_chans: int = 2,
         drop_prob: float = 0.0
@@ -280,8 +247,6 @@ class ASPIN_Unet(nn.Module):
         self.aspin = ASPIN(
             num_anatomies = 2, 
             num_channels = in_chans,
-            gamma = gamma,
-            beta = beta
         )
 
     def complex_to_chan_dim(self, x: torch.Tensor) -> torch.Tensor:
@@ -350,14 +315,12 @@ class ASPIN_Unet(nn.Module):
 
         x = self.unet(x)
 
-        feature = x
-        
         # unnorm
         x = self.unpad(x, *pad_sizes)
         x = self.unnorm(x, mean, std)
         x = self.chan_complex_to_last_dim(x)
 
-        return x, feature
+        return x
     
 
 class ASPIN_VarNetBlock(nn.Module):
@@ -384,14 +347,14 @@ class ASPIN_VarNetBlock(nn.Module):
         ref_kspace: torch.Tensor,
         mask: torch.Tensor,
         sens_maps: torch.Tensor,
-        anatomy_idx: int
+        anatomy_idx: torch.Tensor
     ) -> torch.Tensor:
         zero = torch.zeros(1, 1, 1, 1, 1).to(current_kspace)
         soft_dc = torch.where(mask, current_kspace - ref_kspace, zero) * self.dc_weight
-        model_output, feature = self.model(self.sens_reduce(current_kspace, sens_maps), anatomy_idx)
+        model_output, = self.model(self.sens_reduce(current_kspace, sens_maps), anatomy_idx)
         model_term = self.sens_expand(model_output, sens_maps)
 
-        return current_kspace - soft_dc - model_term, feature
+        return current_kspace - soft_dc - model_term
     
 
 class ASPIN_VarNet(nn.Module):
@@ -400,7 +363,6 @@ class ASPIN_VarNet(nn.Module):
     """
     def __init__(
         self,
-        classifier,
         num_cascades: int = 12,
         sens_chans: int = 8,
         sens_pools: int = 4,
@@ -409,39 +371,19 @@ class ASPIN_VarNet(nn.Module):
     ):
         super().__init__()
         self.sens_net = SensitivityModel(sens_chans, sens_pools)
-        self.gamma = nn.Parameter(torch.ones(2, 2))
-        self.beta  = nn.Parameter(torch.zeros(2, 2))
         self.cascades = nn.ModuleList(
-            [ASPIN_VarNetBlock(ASPIN_Unet(chans, pools,gamma = self.gamma, beta = self.beta)) for _ in range(num_cascades)]
+            [ASPIN_VarNetBlock(ASPIN_Unet(chans, pools)) for _ in range(num_cascades)]
         )
-        self.anatomy_classifier = classifier
 
-
-
-    def forward(self, masked_kspace: torch.Tensor, mask: torch.Tensor, anatomy_idx: int) -> torch.Tensor:
+    def forward(self, masked_kspace: torch.Tensor, mask: torch.Tensor, anatomy_idx: torch.Tensor) -> torch.Tensor:
         sens_maps = self.sens_net(masked_kspace, mask)
         kspace_pred = masked_kspace.clone()
 
-
-        # method of concantating all features of cascades
-        """
-        all_features = []
         for cascade in self.cascades:
-            kspace_pred, feature = cascade(kspace_pred, masked_kspace, mask, sens_maps, anatomy_idx)
-            all_features.append(feature)
+            kspace_pred = cascade(kspace_pred, masked_kspace, mask, sens_maps, anatomy_idx)
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
-        concat_feature = torch.mean(torch.stack(all_features),dim=0)
-        probs = self.anatomy_classifier(concat_feature)
-        """
 
-        # method of only using the last cascade
-        for cascade in self.cascades:
-            kspace_pred, feature = cascade(kspace_pred, masked_kspace, mask, sens_maps, anatomy_idx)
-        result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
-        result = center_crop(result, 384, 384)
-        probs = self.anatomy_classifier(feature)
-
-        return result, probs
+        return result
     
     

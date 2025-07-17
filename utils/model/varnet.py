@@ -17,10 +17,6 @@ from fastmri.data import transforms
 from unet import Unet
 from utils.common.utils import center_crop
 
-# Add checkpoint
-import torch.utils.checkpoint
-
-
 
 class NormUnet(nn.Module):
     """
@@ -121,13 +117,14 @@ class NormUnet(nn.Module):
         x, pad_sizes = self.pad(x)
 
         x = self.unet(x)
+        feature = x
 
         # get shapes back and unnormalize
         x = self.unpad(x, *pad_sizes)
         x = self.unnorm(x, mean, std)
         x = self.chan_complex_to_last_dim(x)
 
-        return x
+        return x, feature
 
 
 class SensitivityModel(nn.Module):
@@ -198,7 +195,7 @@ class SensitivityModel(nn.Module):
         x, b = self.chans_to_batch_dim(x)
 
         # estimate sensitivities
-        x = self.norm_unet(x)
+        x = self.norm_unet(x)[0]
         x = self.batch_chans_to_chan_dim(x, b)
         x = self.divide_root_sum_of_squares(x)
 
@@ -244,12 +241,10 @@ class VarNet(nn.Module):
         kspace_pred = masked_kspace.clone()
 
         for cascade in self.cascades:
-            # Gradient checkpointing
-            # kspace_pred = cascade(kspace_pred, masked_kspace, mask, sens_maps)
-            kspace_pred = torch.utils.checkpoint.checkpoint(cascade, kspace_pred, masked_kspace, mask, sens_maps)
+            kspace_pred, feature = cascade(kspace_pred, masked_kspace, mask, sens_maps)
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
-        return result
+        return result, feature
 
 
 class VarNetBlock(nn.Module):
@@ -290,8 +285,9 @@ class VarNetBlock(nn.Module):
     ) -> torch.Tensor:
         zero = torch.zeros(1, 1, 1, 1, 1).to(current_kspace)
         soft_dc = torch.where(mask, current_kspace - ref_kspace, zero) * self.dc_weight
-        model_term = self.sens_expand(
-            self.model(self.sens_reduce(current_kspace, sens_maps)), sens_maps
-        )
+        model_output, feature = self.model(self.sens_reduce(current_kspace, sens_maps))
+        model_term = self.sens_expand(model_output, sens_maps)
 
-        return current_kspace - soft_dc - model_term
+        return current_kspace - soft_dc - model_term, feature
+
+
