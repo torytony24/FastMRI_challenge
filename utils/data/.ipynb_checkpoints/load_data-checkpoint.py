@@ -69,8 +69,6 @@ class SliceData(Dataset):
             anatomy = "brain"
         elif "knee" in kspace_fname.name:
             anatomy = "knee"
-        else:
-            anatomy = "unknown"
 
         # Add return anatomy
         return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice, anatomy)

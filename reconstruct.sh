@@ -1,5 +1,5 @@
 python reconstruct.py \
   -b 1 \
-  -n 'aspin-varnet-test' \
+  -n 'test' \
   -p '/root/Data/leaderboard' \
   --cascade 8

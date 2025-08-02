@@ -20,8 +20,46 @@ from utils.model.classifier import AnatomyClassifier
 # Debugger: OFF 0 / ON 1
 debugger = 0
 
+def crop_feature(tensor: torch.Tensor, target_height: int, target_width: int) -> torch.Tensor:
+    _, _, h, w = tensor.shape
 
-def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, data_loader, optimizer, loss_recon, loss_distill):
+    # --- Center crop if too big ---
+    top = max((h - target_height) // 2, 0)
+    left = max((w - target_width) // 2, 0)
+    bottom = top + min(h, target_height)
+    right = left + min(w, target_width)
+    tensor = tensor[:, :, top:bottom, left:right]
+
+    # --- Padding if too small ---
+    pad_height = target_height - tensor.shape[2]
+    pad_width = target_width - tensor.shape[3]
+    pad_top = pad_height // 2
+    pad_bottom = pad_height - pad_top
+    pad_left = pad_width // 2
+    pad_right = pad_width - pad_left
+
+    tensor = F.pad(tensor, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=0)
+    return tensor
+
+def compute_attention_map(feature: torch.Tensor) -> torch.Tensor:
+    return torch.sum(feature ** 2, dim=1)
+    
+def normalize_attention_map(att_map: torch.Tensor) -> torch.Tensor:
+    norm = torch.norm(att_map.view(att_map.size(0), -1), p=2, dim=1, keepdim=True) + 1e-8
+    return att_map / norm.view(-1, 1, 1)
+    
+def attention_transfer_loss(student_feat: torch.Tensor, teacher_feat: torch.Tensor) -> torch.Tensor:
+    att_s = compute_attention_map(student_feat)
+    att_t = compute_attention_map(teacher_feat)
+    
+    att_s = normalize_attention_map(att_s)
+    att_t = normalize_attention_map(att_t)
+    
+    return F.l1_loss(att_s, att_t)
+
+
+
+def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, data_loader, optimizer, loss_recon, device):
     model_student.train()
     len_loader = len(data_loader)
     total_loss = 0.
@@ -44,13 +82,19 @@ def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_stud
                 _, feature_teacher = model_teacher_brain(kspace, mask)
             elif anatomy == 1:
                 _, feature_teacher = model_teacher_knee(kspace, mask)
+        feature_teacher = [f.to(device=device) for f in feature_teacher]
             
         output, feature_student = model_student(kspace, mask, anatomy)
+        feature_student = [f.to(device=device) for f in feature_student]
+
+        
 
         loss_1 = loss_recon(output, target, maximum)
-        loss_2 = loss_distill(feature_student, feature_teacher)
+        loss_2 = 0
+        for i in range(len(feature_teacher)):
+            loss_2 += attention_transfer_loss(feature_teacher[i], feature_student[i])
 
-        alpha = 0.1
+        alpha = 2.0
         loss = loss_1 + alpha * loss_2
         
         optimizer.zero_grad()
@@ -62,7 +106,7 @@ def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_stud
             print(
                 f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
                 f'Iter = [{iter:4d}/{len(data_loader):4d}] '
-                f'L1 = [{loss_1.item():.4g}] / L2 = [{loss_2.item():.4g}]',
+                f'L1 = [{loss_1.item():.4g}] / L2 = [{loss_2.item():.4g}] / L = [{loss.item():.4g}]',
             )
             
     total_loss = total_loss / len_loader
@@ -88,12 +132,11 @@ def validate(args, model_student, model_cls, classifier, data_loader):
             anatomy = anatomy.cuda(non_blocking=True)
 
             _, feature = model_cls(kspace, mask)
+            feature = crop_feature(feature, 640, 368)
             probs = classifier(feature)
             pred = probs.argmax(dim=1)
-            #print( f'Pred: [{pred.squeeze().tolist()}], True: [{anatomy.squeeze().tolist()}]')
-            #output, _ = model_student(kspace, mask, pred)
-            output, _ = model_student(kspace, mask, anatomy)
-
+            print( f'Pred: [{pred.squeeze().tolist()}], True: [{anatomy.squeeze().tolist()}]')
+            output, _ = model_student(kspace, mask, pred)
             
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
@@ -143,11 +186,15 @@ def train_student(args):
                        chans=args.chans, sens_chans=args.sens_chans)
     model_cls.to(device=device)
     
-    classifier_path = '/root/FastMRI_challenge/checkpoints_cls/best_model_cls.pt'
+    classifier_path = '/root/FastMRI_challenge/Classifier_savefile/checkpoints/best_model.pt'
     checkpoint_cls = torch.load(classifier_path, map_location=device)
-    classifier.load_state_dict(checkpoint_cls['classifier'])
+    classifier.load_state_dict(checkpoint_cls['model'])
     print("... Classifier loaded!")
 
+    checkpoint_path = '/root/FastMRI_challenge/VarNet_savefile/checkpoints/best_model.pt'
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model_cls.load_state_dict(checkpoint['model'])
+    print("... VarNet for classifier loaded!")
     
     ##################################
     ####### Load teacher model #######
@@ -158,17 +205,6 @@ def train_student(args):
                                          chans=args.chans, sens_chans=args.sens_chans)
     model_teacher_brain.to(device=device)
     model_teacher_knee.to(device=device)
-
-    """
-    def inspect_teacher_model(path):
-        checkpoint = torch.load(path, map_location='cpu')
-        keys = list(checkpoint['model'].keys())
-        print(f"Total keys: {len(keys)}")
-        cascade_keys = [k for k in keys if k.startswith("cascades.")]
-        cascade_ids = sorted(set(k.split('.')[1] for k in cascade_keys))
-        print(f"Cascade modules present: {cascade_ids}")
-    inspect_teacher_model('/root/result/teacher-brain-savefile/checkpoints/best_model.pt')
-    """
     
     teacher_brain_path = '/root/result/teacher-brain-savefile/checkpoints/best_model.pt'
     teacher_knee_path = '/root/result/teacher-knee-savefile/checkpoints/best_model.pt'
@@ -196,7 +232,6 @@ def train_student(args):
 
     optimizer = torch.optim.Adam(model_student.parameters(), args.lr)
     loss_recon = SSIMLoss().to(device=device)
-    loss_distill = nn.MSELoss().to(device=device)
 
     best_val_loss = 1.
     start_epoch = 0
@@ -206,7 +241,7 @@ def train_student(args):
         args.current_epoch = epoch
 
         print("@@@@@@@@@@@@@@@@@@@@@ [Train Model] @@@@@@@@@@@@@@@@@@@@@")
-        train_loss = train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, train_loader, optimizer, loss_recon, loss_distill)
+        train_loss = train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, train_loader, optimizer, loss_recon, device)
         
         print("@@@@@@@@@@@@@@@@@@@@@ [Validate Model] @@@@@@@@@@@@@@@@@@@@@")
         val_loss, num_subjects, reconstructions, targets, inputs = validate(args, model_student, model_cls, classifier, val_loader)

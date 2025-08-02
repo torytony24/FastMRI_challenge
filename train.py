@@ -6,9 +6,10 @@ from pathlib import Path
 
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
-from utils.learning.train_part import train
-from utils.learning.train_student import train_student
+
 from utils.learning.train_classifier import train_classifier
+from utils.learning.train_teacher import train_teacher
+from utils.learning.train_student import train_student
 
 if os.getcwd() + '/utils/common/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/common/')
@@ -61,6 +62,7 @@ if __name__ == '__main__':
     args.exp_dir.mkdir(parents=True, exist_ok=True)
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
-    train_classifier(args)
-    #train_student(args)
-    #train(args)
+    #train_classifier(args)
+    #train_teacher(args)
+    train_student(args)
+    

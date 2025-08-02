@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fastmri.data import transforms
 
-from unet import Unet
+from unet_for_distill import Unet
 from utils.common.utils import center_crop
 
 
@@ -50,7 +50,7 @@ class NormUnet(nn.Module):
             out_chans=out_chans,
             chans=chans,
             num_pool_layers=num_pools,
-            drop_prob=drop_prob,
+            drop_prob=drop_prob
         )
 
     def complex_to_chan_dim(self, x: torch.Tensor) -> torch.Tensor:
@@ -116,8 +116,7 @@ class NormUnet(nn.Module):
         x, mean, std = self.norm(x)
         x, pad_sizes = self.pad(x)
 
-        x = self.unet(x)
-        feature = x
+        x, feature = self.unet(x)
 
         # get shapes back and unnormalize
         x = self.unpad(x, *pad_sizes)
@@ -247,7 +246,7 @@ class Teacher_VarNet(nn.Module):
             all_features.append(feature)
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
-        return result, all_features[4]
+        return result, all_features
 
 
 class VarNetBlock(nn.Module):

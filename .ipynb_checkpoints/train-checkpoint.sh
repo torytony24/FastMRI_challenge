@@ -1,13 +1,9 @@
 python train.py \
   -b 1 \
-  -e 1 \
+  -e 10 \
   -l 0.001 \
   -r 10 \
-  -n 'cascade8' \
+  -n 'test' \
   -t '/root/Data/train/' \
   -v '/root/Data/val/' \
-  --cascade 8 \
-  --aug_on \
-  --aug_strength 0.5 \
-  --aug_schedule constant \
-  --aug_delay 0
+  --cascade 8

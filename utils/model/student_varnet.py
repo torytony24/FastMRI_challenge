@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fastmri.data import transforms
 
-from unet import Unet
+from unet_for_distill import Unet
 from utils.common.utils import center_crop
 
 
@@ -109,7 +109,7 @@ class NormUnet(nn.Module):
         x, mean, std = self.norm(x)
         x, pad_sizes = self.pad(x)
 
-        x = self.unet(x)
+        x, _ = self.unet(x)
 
         # get shapes back and unnormalize
         x = self.unpad(x, *pad_sizes)
@@ -312,8 +312,7 @@ class ASPIN_Unet(nn.Module):
         x, mean, std = self.aspin(x, anatomy_idx)
         x, pad_sizes = self.pad(x)
 
-        x = self.unet(x)
-        feature = x
+        x, feature = self.unet(x)
 
         # unnorm
         x = self.unpad(x, *pad_sizes)
@@ -383,6 +382,6 @@ class Student_VarNet(nn.Module):
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
 
-        return result, all_features[4]
+        return result, all_features
     
     

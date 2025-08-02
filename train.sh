@@ -1,6 +1,6 @@
 python train.py \
   -b 1 \
-  -e 50 \
+  -e 10 \
   -l 0.001 \
   -r 10 \
   -n 'test' \
