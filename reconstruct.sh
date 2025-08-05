@@ -1,5 +1,5 @@
 python reconstruct.py \
   -b 1 \
-  -n 'test' \
+  -n 'teacherbrainfinal' \
   -p '/root/Data/leaderboard' \
   --cascade 8

@@ -16,7 +16,7 @@ from transformers import get_cosine_schedule_with_warmup
 
 
 # Debugger: OFF 0 / ON 1
-debugger = 0
+debugger = 1
 
 
 def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type, train_identifier):
@@ -41,7 +41,11 @@ def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type
             continue
         
         output, _ = model(kspace, mask)
-        loss = loss_type(output, target, maximum)
+
+        w = 0.1
+        loss_ssim = loss_type(output, target, maximum)
+        loss_l1 = F.l1_loss(output, target) * 10000        # balance rate 1e4
+        loss = (1 - w) * loss_ssim + w * loss_l1
         
         optimizer.zero_grad()
         loss.backward()
@@ -145,12 +149,6 @@ def train_teacher(args):
     train_identifier = 0
     ###########################
 
-
-
-
-
-
-
     
     ###########################
     ### Model training part ###
@@ -170,6 +168,9 @@ def train_teacher(args):
 
     best_val_loss = 1.
     start_epoch = 0
+
+    # load backup checkpoint here
+
     
     val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):
