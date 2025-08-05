@@ -14,7 +14,7 @@ from utils.common.loss_function import SSIMLoss
 from utils.model.varnet import VarNet
 from utils.model.teacher_varnet import Teacher_VarNet
 from utils.model.student_varnet import Student_VarNet
-from utils.model.classifier import AnatomyClassifier
+
 
 
 # Debugger: OFF 0 / ON 1
@@ -112,10 +112,8 @@ def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_stud
     total_loss = total_loss / len_loader
     return total_loss
 
-def validate(args, model_student, model_cls, classifier, data_loader):
+def validate(args, model_student, data_loader):
     model_student.eval()
-    model_cls.eval()
-    classifier.eval()
     reconstructions = defaultdict(dict)
     targets = defaultdict(dict)
 
@@ -131,12 +129,7 @@ def validate(args, model_student, model_cls, classifier, data_loader):
             mask = mask.cuda(non_blocking=True)
             anatomy = anatomy.cuda(non_blocking=True)
 
-            _, feature = model_cls(kspace, mask)
-            feature = crop_feature(feature, 640, 368)
-            probs = classifier(feature)
-            pred = probs.argmax(dim=1)
-            print( f'Pred: [{pred.squeeze().tolist()}], True: [{anatomy.squeeze().tolist()}]')
-            output, _ = model_student(kspace, mask, pred)
+            output, _ = model_student(kspace, mask, anatomy)
             
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
@@ -176,25 +169,6 @@ def train_student(args):
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device)
     print('Current cuda device: ', torch.cuda.current_device())
-
-    ##############################
-    ######### Classifier #########
-    classifier = AnatomyClassifier(2, 2)
-    classifier.to(device=device)
-
-    model_cls = VarNet(num_cascades=args.cascade, 
-                       chans=args.chans, sens_chans=args.sens_chans)
-    model_cls.to(device=device)
-    
-    classifier_path = '/root/FastMRI_challenge/Classifier_savefile/checkpoints/best_model.pt'
-    checkpoint_cls = torch.load(classifier_path, map_location=device)
-    classifier.load_state_dict(checkpoint_cls['model'])
-    print("... Classifier loaded!")
-
-    checkpoint_path = '/root/FastMRI_challenge/VarNet_savefile/checkpoints/best_model.pt'
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    model_cls.load_state_dict(checkpoint['model'])
-    print("... VarNet for classifier loaded!")
     
     ##################################
     ####### Load teacher model #######
@@ -235,6 +209,19 @@ def train_student(args):
 
     best_val_loss = 1.
     start_epoch = 0
+
+    
+    # bring checkpoint
+    """
+    checkpoint_path = '/root/result/student-epoch10/checkpoints/best_model.pt'
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model_student.load_state_dict(checkpoint['model'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    start_epoch = checkpoint['epoch']
+    best_val_loss = checkpoint['best_val_loss']
+    print(f"Checkpoint loaded! Resume from epoch {start_epoch}")
+    """
+    
     
     val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):
@@ -244,7 +231,7 @@ def train_student(args):
         train_loss = train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, train_loader, optimizer, loss_recon, device)
         
         print("@@@@@@@@@@@@@@@@@@@@@ [Validate Model] @@@@@@@@@@@@@@@@@@@@@")
-        val_loss, num_subjects, reconstructions, targets, inputs = validate(args, model_student, model_cls, classifier, val_loader)
+        val_loss, num_subjects, reconstructions, targets, inputs = validate(args, model_student, val_loader)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
         file_path = os.path.join(args.val_loss_dir, "val_loss_log")

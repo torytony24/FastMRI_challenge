@@ -3,6 +3,7 @@ import torch
 
 
 #debug
+import matplotlib.pyplot as plt
 import os
 import torch
 from utils.model.fastmri.fftc import ifft2c_new as ifft2c
@@ -30,11 +31,12 @@ def visualize_kspace_and_image(kspace, target=None, title="", save_dir="/root/vi
         plt.imsave(path, img_tensor.cpu().numpy(), cmap='gray')
         print(f"Saved: {path}")
 
-    save_image(kspace_log, f"{title}_kspace")
     save_image(image, f"{title}_image")
     if target is not None:
         save_image(target, f"{title}_target")
 #debug end
+
+
 
 def to_tensor(data):
     """
@@ -123,6 +125,7 @@ class AugDataTransform:
                 prefix=f"{fname}_{slice}"
             )
         """
+
 
         mask_tensor = torch.tensor(mask).to(kspace.device).unsqueeze(-1)
         kspace = kspace * mask_tensor

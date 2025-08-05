@@ -6,7 +6,6 @@
 ```bash
 export PYTHONPATH=$PYTHONPATH:/root/FastMRI_challenge/MRAugment
 ```
-- augmentation not working! larger loss
 
 ## Step 1. Training classifier
 ```
@@ -81,4 +80,13 @@ reconstruct.sh
         pred = classifier(feature)
         output = model_student(input, pred)
 ```
+
+# Main model training
+## Trainging teacher
+
+
+
+
+
+
 

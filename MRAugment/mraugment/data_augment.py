@@ -117,7 +117,7 @@ class AugmentationPipeline:
                            interpolation=TF.InterpolationMode.BILINEAR
                           )
             im = TF.center_crop(im, (h, w))
-        
+
         # ---------------------------------------------------------------------
         # Apply additional interpolating augmentations here before downsampling
         # ---------------------------------------------------------------------
@@ -134,6 +134,7 @@ class AugmentationPipeline:
         im = complex_channel_last(im)
         
         return im
+
     
     def augment_from_kspace(self, kspace, target_size, max_train_size=None):       
         im = ifft2c(kspace) 

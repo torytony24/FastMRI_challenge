@@ -8,6 +8,8 @@ import numpy as np
 # for augment
 from mraugment.data_augment import DataAugmentor
 
+from torch.utils.data import Subset
+
 class SliceData(Dataset):
     def __init__(self, root, transform, input_key, target_key, forward=False):
         self.transform = transform
@@ -74,7 +76,7 @@ class SliceData(Dataset):
         return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice, anatomy)
 
 
-def create_data_loaders(data_path, args, shuffle=False, isforward=False, is_train = False):
+def create_data_loaders(data_path, args, shuffle=False, isforward=False, is_train = False, micro_size: int = None,):
     if isforward == False:
         max_key_ = args.max_key
         target_key_ = args.target_key
@@ -100,6 +102,11 @@ def create_data_loaders(data_path, args, shuffle=False, isforward=False, is_trai
         target_key=target_key_,
         forward = isforward
     )
+
+    if micro_size is not None and micro_size < len(data_storage):
+        all_indices = list(range(len(data_storage)))
+        micro_indices = random.sample(all_indices, k=micro_size)
+        data_storage = Subset(data_storage, micro_indices)
 
     data_loader = DataLoader(
         dataset=data_storage,

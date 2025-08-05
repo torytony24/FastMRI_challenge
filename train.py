@@ -7,6 +7,10 @@ from pathlib import Path
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
 
+# this for debugging
+from utils.learning.train_part import train
+
+
 from utils.learning.train_classifier import train_classifier
 from utils.learning.train_teacher import train_teacher
 from utils.learning.train_student import train_student
@@ -64,5 +68,10 @@ if __name__ == '__main__':
 
     #train_classifier(args)
     #train_teacher(args)
-    train_student(args)
-    
+    #train_student(args)
+
+    # this for debugging
+    train(args)
+
+
+

@@ -12,13 +12,14 @@ from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss
 from utils.model.teacher_varnet import Teacher_VarNet
+from transformers import get_cosine_schedule_with_warmup
 
 
 # Debugger: OFF 0 / ON 1
 debugger = 0
 
 
-def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, train_identifier):
+def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type, train_identifier):
     model.train()
     len_loader = len(data_loader)
     total_loss = 0.
@@ -45,6 +46,8 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, train_ide
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
+
         total_loss += loss.item()
 
         if iter % args.report_interval == 0:
@@ -98,23 +101,36 @@ def validate(args, model, data_loader, train_identifier):
     
 
 
-def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, train_identifier):
+def save_model(model, best_val_loss, is_new_best, train_identifier):
     if train_identifier == 0:
         save_dir = '/root/FastMRI_challenge/Teacher_brain_savefile/checkpoints/'
     elif train_identifier == 1:
         save_dir = '/root/FastMRI_challenge/Teacher_knee_savefile/checkpoints/'
     torch.save(
         {
-            'epoch': epoch,
-            'args': args,
             'model': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
         },
         f=save_dir + 'model.pt'
     )
     if is_new_best:
         shutil.copyfile(save_dir+ 'model.pt', save_dir+ 'best_model.pt')
+
+def save_model_backup(args, exp_dir, epoch, model, optimizer, scheduler, best_val_loss, is_new_best):
+    torch.save(
+        {
+            'epoch': epoch,
+            'args': args,
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'scheduler': scheduler.state_dict(),
+            'best_val_loss': best_val_loss,
+            'exp_dir': exp_dir
+        },
+        f=exp_dir / 'model.pt'
+    )
+    if is_new_best:
+        shutil.copyfile(exp_dir / 'model.pt', exp_dir / 'best_model.pt')
 
 
 
@@ -126,8 +142,14 @@ def train_teacher(args):
 
     ###########################
     # teacher: brain 0 / knee 1
-    train_identifier = 1
+    train_identifier = 0
     ###########################
+
+
+
+
+
+
 
     
     ###########################
@@ -138,8 +160,13 @@ def train_teacher(args):
     train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle = True, is_train = True)
     val_loader = create_data_loaders(data_path = args.data_path_val, args = args, is_train = False)
 
-    optimizer = torch.optim.Adam(model.parameters(), args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr = 1e-3, weight_decay = 1e-4)
     loss_type = SSIMLoss().to(device=device)
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps = 10,
+        num_training_steps = args.num_epochs
+    )
 
     best_val_loss = 1.
     start_epoch = 0
@@ -149,7 +176,7 @@ def train_teacher(args):
         args.current_epoch = epoch
 
         print("@@@@@@@@@@@@@@@@@@@@@ [Train Model] @@@@@@@@@@@@@@@@@@@@@")
-        train_loss = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, train_identifier)
+        train_loss = train_epoch(args, epoch, model, train_loader, optimizer, scheduler, loss_type, train_identifier)
         
         print("@@@@@@@@@@@@@@@@@@@@@ [Validate Model] @@@@@@@@@@@@@@@@@@@@@")
         val_loss, num_subjects, reconstructions, targets, inputs = validate(args, model, val_loader, train_identifier)
@@ -168,7 +195,12 @@ def train_teacher(args):
         is_new_best = val_loss < best_val_loss
         best_val_loss = min(best_val_loss, val_loss)
 
-        save_model(args, args.exp_dir, epoch + 1, model, optimizer, best_val_loss, is_new_best, train_identifier)
+        save_model(model, best_val_loss, is_new_best, train_identifier)
         print(val_loss_log)
 
+        # Backup for learning
+        save_model_backup(args, args.exp_dir, epoch + 1, model, optimizer, scheduler, best_val_loss, is_new_best)
+        if is_new_best:
+            print("@@@@@@@@@@@@@@@@@@@@@ New Record @@@@@@@@@@@@@@@@@@@@@")
+            save_reconstructions(reconstructions, args.val_dir, targets=targets, inputs=inputs)
 
