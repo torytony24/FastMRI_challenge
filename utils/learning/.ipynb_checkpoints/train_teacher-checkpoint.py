@@ -16,7 +16,7 @@ from transformers import get_cosine_schedule_with_warmup
 
 
 # Debugger: OFF 0 / ON 1
-debugger = 1
+#debugger = 0
 
 
 def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type, train_identifier):
@@ -24,11 +24,12 @@ def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type
     len_loader = len(data_loader)
     total_loss = 0.
 
-    cnt=0
+    
+    #cnt=0
     for iter, data in enumerate(data_loader):
-        cnt+=debugger
-        if cnt>5:
-            break
+        #cnt+=debugger
+        #if cnt>5:
+            #break
             
         mask, kspace, target, maximum, _, _, anatomy = data
         mask = mask.cuda(non_blocking=True)
@@ -42,7 +43,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type
         
         output, _ = model(kspace, mask)
 
-        w = 0.1
+        w = 0.1   # 0.1
         loss_ssim = loss_type(output, target, maximum)
         loss_l1 = F.l1_loss(output, target) * 10000        # balance rate 1e4
         loss = (1 - w) * loss_ssim + w * loss_l1
@@ -58,7 +59,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, scheduler, loss_type
             print(
                 f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
                 f'Iter = [{iter:4d}/{len(data_loader):4d}] '
-                f'Loss = {loss.item():.4g} ',
+                f'Loss = [{loss_ssim}]/[{loss_l1}]/{loss.item():.4g} ',
             )
             
     total_loss = total_loss / len_loader
@@ -70,12 +71,12 @@ def validate(args, model, data_loader, train_identifier):
     targets = defaultdict(dict)
 
     with torch.no_grad():
-        cnt=0
+        #cnt=0
         for iter, data in enumerate(data_loader):
-            if cnt>5:
-                break
-                
-            cnt+=debugger
+            #cnt+=debugger
+            #if cnt>5:
+                #break
+            
             mask, kspace, target, _, fnames, slices, anatomy = data
             mask = mask.cuda(non_blocking=True)
             kspace = kspace.cuda(non_blocking=True)
@@ -170,7 +171,6 @@ def train_teacher(args):
     start_epoch = 0
 
     # load backup checkpoint here
-
     
     val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):

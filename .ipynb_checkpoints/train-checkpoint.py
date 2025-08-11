@@ -67,11 +67,11 @@ if __name__ == '__main__':
     args.val_dir.mkdir(parents=True, exist_ok=True)
 
     #train_classifier(args)
-    #train_teacher(args)
+    train_teacher(args)
     #train_student(args)
 
     # this for debugging
-    train(args)
+    #train(args)
 
 
 

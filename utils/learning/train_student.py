@@ -11,14 +11,15 @@ from collections import defaultdict
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
 from utils.common.loss_function import SSIMLoss
-from utils.model.varnet import VarNet
 from utils.model.teacher_varnet import Teacher_VarNet
 from utils.model.student_varnet import Student_VarNet
+from transformers import get_cosine_schedule_with_warmup
+
 
 
 
 # Debugger: OFF 0 / ON 1
-debugger = 0
+#debugger = 0
 
 def crop_feature(tensor: torch.Tensor, target_height: int, target_width: int) -> torch.Tensor:
     _, _, h, w = tensor.shape
@@ -59,16 +60,16 @@ def attention_transfer_loss(student_feat: torch.Tensor, teacher_feat: torch.Tens
 
 
 
-def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, data_loader, optimizer, loss_recon, device):
+def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, data_loader, optimizer, scheduler, loss_recon, device):
     model_student.train()
     len_loader = len(data_loader)
     total_loss = 0.
 
-    cnt=0
+    #cnt=0
     for iter, data in enumerate(data_loader):
-        cnt+=debugger
-        if cnt>5:
-            break
+        #cnt+=debugger
+        #if cnt>5:
+        #    break
             
         mask, kspace, target, maximum, _, _, anatomy = data
         mask = mask.cuda(non_blocking=True)
@@ -87,26 +88,28 @@ def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_stud
         output, feature_student = model_student(kspace, mask, anatomy)
         feature_student = [f.to(device=device) for f in feature_student]
 
-        
 
-        loss_1 = loss_recon(output, target, maximum)
-        loss_2 = 0
+        loss_ssim = loss_recon(output, target, maximum)
+        loss_l1 = F.l1_loss(output, target) * 10000 
+        loss_distill = 0
         for i in range(len(feature_teacher)):
-            loss_2 += attention_transfer_loss(feature_teacher[i], feature_student[i])
+            loss_distill += attention_transfer_loss(feature_teacher[i], feature_student[i])
 
+        w = 0.1
         alpha = 2.0
-        loss = loss_1 + alpha * loss_2
+        loss = (1 - w) * loss_ssim + w * loss_l1 + alpha * loss_distill
         
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
         total_loss += loss.item()
 
         if iter % args.report_interval == 0:
             print(
                 f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
                 f'Iter = [{iter:4d}/{len(data_loader):4d}] '
-                f'L1 = [{loss_1.item():.4g}] / L2 = [{loss_2.item():.4g}] / L = [{loss.item():.4g}]',
+                f'L1 = [{loss_ssim.item():.4g}] / L2 = [{loss_distill.item():.4g}] / L = [{loss.item():.4g}]',
             )
             
     total_loss = total_loss / len_loader
@@ -118,11 +121,11 @@ def validate(args, model_student, data_loader):
     targets = defaultdict(dict)
 
     with torch.no_grad():
-        cnt=0
+        #cnt=0
         for iter, data in enumerate(data_loader):
-            if cnt>5:
-                break
-            cnt+=debugger
+            #if cnt>5:
+            #    break
+            #cnt+=debugger
             
             mask, kspace, target, _, fnames, slices, anatomy = data
             kspace = kspace.cuda(non_blocking=True)
@@ -157,7 +160,8 @@ def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_bes
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),
             'best_val_loss': best_val_loss,
-            'exp_dir': exp_dir
+            'exp_dir': exp_dir,
+            'scheduler': scheduler.state_dict(),
         },
         f=exp_dir / 'model.pt'
     )
@@ -204,31 +208,34 @@ def train_student(args):
     train_loader = create_data_loaders(data_path = args.data_path_train, args = args, shuffle = True, is_train = True)
     val_loader = create_data_loaders(data_path = args.data_path_val, args = args, shuffle = True, is_train = False)
 
-    optimizer = torch.optim.Adam(model_student.parameters(), args.lr)
+    optimizer = torch.optim.AdamW(model_student.parameters(), lr = 1e-3, weight_decay = 1e-4)
     loss_recon = SSIMLoss().to(device=device)
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps = 10,
+        num_training_steps = args.num_epochs
+    )
 
     best_val_loss = 1.
     start_epoch = 0
 
-    
-    # bring checkpoint
     """
-    checkpoint_path = '/root/result/student-epoch10/checkpoints/best_model.pt'
+    checkpoint_path = '/root/result/studentfinal/checkpoints/best_model.pt'
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model_student.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler.load_state_dict(checkpoint['scheduler'])
     start_epoch = checkpoint['epoch']
     best_val_loss = checkpoint['best_val_loss']
-    print(f"Checkpoint loaded! Resume from epoch {start_epoch}")
+    print("...checkpoint loaded!")
     """
-    
     
     val_loss_log = np.empty((0, 2))
     for epoch in range(start_epoch, args.num_epochs):
         args.current_epoch = epoch
 
         print("@@@@@@@@@@@@@@@@@@@@@ [Train Model] @@@@@@@@@@@@@@@@@@@@@")
-        train_loss = train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, train_loader, optimizer, loss_recon, device)
+        train_loss = train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_student, train_loader, optimizer, scheduler, loss_recon, device)
         
         print("@@@@@@@@@@@@@@@@@@@@@ [Validate Model] @@@@@@@@@@@@@@@@@@@@@")
         val_loss, num_subjects, reconstructions, targets, inputs = validate(args, model_student, val_loader)

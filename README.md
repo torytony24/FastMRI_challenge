@@ -1,6 +1,18 @@
 # 2025 baby varnet
 2025 SNU FastMRI challenge
 
+```bash
+apt-get update -y && apt-get install -y libgl1-mesa-glx
+```
+
+[[0.         6.96726353]
+ [1.         6.28483649]
+ [2.         6.18656245]
+ [3.         5.85706007]
+ [4.         5.9062582 ]
+ [5.         5.70814874]
+ [6.         5.68853857]]
+
 ## MRAugment
 
 ```bash
