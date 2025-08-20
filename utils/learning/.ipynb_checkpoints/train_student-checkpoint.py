@@ -68,7 +68,7 @@ def train_epoch(args, epoch, model_teacher_brain, model_teacher_knee, model_stud
     #cnt=0
     for iter, data in enumerate(data_loader):
         #cnt+=debugger
-        #if cnt>5:
+        #if cnt>1:
         #    break
             
         mask, kspace, target, maximum, _, _, anatomy = data
@@ -123,7 +123,7 @@ def validate(args, model_student, data_loader):
     with torch.no_grad():
         #cnt=0
         for iter, data in enumerate(data_loader):
-            #if cnt>5:
+            #if cnt>1:
             #    break
             #cnt+=debugger
             
@@ -152,7 +152,7 @@ def validate(args, model_student, data_loader):
     return metric_loss, num_subjects, reconstructions, targets, None
 
 
-def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best):
+def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_best, scheduler):
     torch.save(
         {
             'epoch': epoch,
@@ -254,7 +254,7 @@ def train_student(args):
         is_new_best = val_loss < best_val_loss
         best_val_loss = min(best_val_loss, val_loss)
 
-        save_model(args, args.exp_dir, epoch + 1, model_student, optimizer, best_val_loss, is_new_best)
+        save_model(args, args.exp_dir, epoch + 1, model_student, optimizer, best_val_loss, is_new_best, scheduler)
         print( f'Epoch = [{epoch:4d}/{args.num_epochs:4d}] TrainLoss = {train_loss:.4g} ValLoss = {val_loss:.4g}' , )
 
         print(val_loss_log)

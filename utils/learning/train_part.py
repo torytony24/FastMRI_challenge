@@ -62,7 +62,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, train_ide
             continue
         
         output, _ = model(kspace, mask)
-        #save_output_image(output, f'output_iter_{iter}.png')
+        save_output_image(output, f'output_iter_{iter}.png')
         w = 0.1
         loss_ssim = loss_type(output, target, maximum)
         loss_l1 = F.l1_loss(output, target) * 10000

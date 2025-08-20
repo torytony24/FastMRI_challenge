@@ -1,0 +1,26 @@
+python train_student.py \
+  -b 1 \
+  -e 100 \
+  -l 0.001 \
+  -r 50 \
+  -n 'studentfinal' \
+  -t '/root/Data/train/' \
+  -v '/root/Data/val/' \
+  --cascade 8 \
+  --aug_on \
+  --aug_delay 10 \
+  --aug_strength 0.6 \
+  --aug_schedule exp \
+  --aug_max_rotation 0.0 \
+  --aug_max_scaling 0.00 \
+  --aug_max_shearing_x 0.0 \
+  --aug_max_shearing_y 0.0 \
+  --aug_weight_translation 0.8 \
+  --aug_weight_rotation 0.0 \
+  --aug_weight_shearing 0.0 \
+  --aug_weight_scaling 0.0 \
+  --aug_weight_rot90 0.0 \
+  --aug_weight_fliph 0.8 \
+  --aug_weight_flipv 0.0 \
+  --aug_max_translation_x 0.02 \
+  --aug_max_translation_y 0.02 

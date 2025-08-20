@@ -4,7 +4,9 @@ import torch
 from collections import defaultdict
 from utils.common.utils import save_reconstructions
 from utils.data.load_data import create_data_loaders
-from utils.model.Student_varnet import Student_VarNet
+from utils.model.student_varnet import Student_VarNet
+from utils.model.varnet import VarNet
+from utils.model.classifier import AnatomyClassifier
 from utils.learning.train_classifier import crop_feature
 
 def test(args, model_cls, classifier, model, data_loader):
@@ -20,7 +22,7 @@ def test(args, model_cls, classifier, model, data_loader):
             feature = crop_feature(feature, 640, 368)
             probs = classifier(feature)
             pred = probs.argmax(dim=1)
-            output = model(kspace, mask, pred)
+            output, _ = model(kspace, mask, pred)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()

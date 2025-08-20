@@ -30,7 +30,7 @@ def visualize_kspace_and_image(kspace, target=None, title="", save_dir="/root/vi
         path = os.path.join(save_dir, f"{prefix}_{filename}.png")
         plt.imsave(path, img_tensor.cpu().numpy(), cmap='gray')
         print(f"Saved: {path}")
-
+    save_image(kspace_log, f"{title}_kspace")
     save_image(image, f"{title}_image")
     if target is not None:
         save_image(target, f"{title}_target")
@@ -107,6 +107,7 @@ class AugDataTransform:
                 prefix=f"{fname}_{slice}"
             )
         """
+        
         
         # Add augmentation
         if self.augmentor is not None:
