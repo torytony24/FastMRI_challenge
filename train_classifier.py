@@ -7,9 +7,6 @@ from pathlib import Path
 if os.getcwd() + '/utils/model/' not in sys.path:
     sys.path.insert(1, os.getcwd() + '/utils/model/')
 
-# this for debugging
-from utils.learning.train_part import train
-
 
 from utils.learning.train_classifier import train_classifier
 from utils.learning.train_teacher import train_teacher
