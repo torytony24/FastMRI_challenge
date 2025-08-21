@@ -1,14 +1,15 @@
 # Universal VarNet
 2025 SNU FastMRI challenge
 
+For further informations, refer to  [Universal_VarNet.pdf](./Universal_VarNet.pdf) presentation file.
+
+![Image](https://github.com/user-attachments/assets/01b1ea88-7d8e-4166-95d4-610a0d9443db)
+
+## To start
+
 ```bash
 pip3 install -r requirements.txt
 apt-get update -y && apt-get install -y libgl1-mesa-glx
-```
-
-## MRAugment
-
-```bash
 export PYTHONPATH=$PYTHONPATH:/root/FastMRI_challenge/MRAugment
 ```
 
@@ -87,6 +88,11 @@ reconstruct.sh
         output = model_student(input, pred)
 ```
 
+## References
+
+- [LISTatSNU/FastMRI_challenge](https://github.com/LISTatSNU/FastMRI_challenge.git)
+- [z-fabian/MRAugment](https://github.com/z-fabian/MRAugment.git)
+- [Universal Undersampled MRI Reconstruction (Xinwen Liu et al., 2021)](https://arxiv.org/pdf/2103.05214)
 
 
 
