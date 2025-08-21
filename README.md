@@ -1,17 +1,10 @@
-# 2025 baby varnet
+# Universal VarNet
 2025 SNU FastMRI challenge
 
 ```bash
+pip3 install -r requirements.txt
 apt-get update -y && apt-get install -y libgl1-mesa-glx
 ```
-
-[[0.         6.96726353]
- [1.         6.28483649]
- [2.         6.18656245]
- [3.         5.85706007]
- [4.         5.9062582 ]
- [5.         5.70814874]
- [6.         5.68853857]]
 
 ## MRAugment
 
@@ -20,12 +13,12 @@ export PYTHONPATH=$PYTHONPATH:/root/FastMRI_challenge/MRAugment
 ```
 
 ## Step 1. Training classifier
-```
-terminal / train.sh / train.py / train_classifier.py / varnet.py / classifier.py
+```bash
+sh train_classifier.sh
 ```
 
 **Training hierarchy pseudocode**
-```
+```python
 train.sh
   train.py
     train_classifier(args)
@@ -39,11 +32,11 @@ train.sh
 
 ## Step 2. Training teacher
 ```
-terminal / train.sh / train.py / train_teacher.py / teacher_varnet.py / unet_for_distill.py
+sh train_teacher.sh
 ```
 
 **Training hierarchy pseudocode**
-```
+```python
 train.sh
   train.py
     train_teacher(args)
@@ -56,11 +49,11 @@ train.sh
 
 ## Step 3. Training student
 ```
-terminal / train.sh / train.py / train_student.py / student_varnet.py / unet_for_distill.py
+sh train_student.sh
 ```
 
 **Training hierarchy pseudocode**
-```
+```python
 train.sh
   train.py
     train_student(args)
@@ -73,13 +66,14 @@ train.sh
         validate(...)
 ```
 
-## Step 4. Reconstruction
+## Step 4. Reconstruction & Evaluation
 ```
-terminal / reconstruct.sh / reconstruct.py / test_part.py
+sh reconstruct.sh
+sh leaderboard_eval.sh
 ```
 
 **Training hierarchy pseudocode**
-```
+```python
 reconstruct.sh
   reconstruct.py
     forward(args)
@@ -93,8 +87,6 @@ reconstruct.sh
         output = model_student(input, pred)
 ```
 
-# Main model training
-## Trainging teacher
 
 
 
